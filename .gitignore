@@ -1,0 +1,5 @@
+# .gitignore
+dnm/
+.venv/
+gpt2-turkish-chatbot-v2/
+gpt2-turkish-chatbot-v3/
