@@ -1,0 +1,13 @@
+torch
+flask
+flask_cors
+transformers
+nltk
+scikit-learn
+evaluate
+peft
+bitsandbytes
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+torchaudio
