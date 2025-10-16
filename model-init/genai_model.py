@@ -5,7 +5,7 @@ from transformers import (
     GPT2Tokenizer, GPT2LMHeadModel, Trainer,
     TrainingArguments, DataCollatorForLanguageModeling
 )
-from transformers import StoppingCriteria, StoppingCriteriaList # Import these
+from transformers import StoppingCriteria, StoppingCriteriaList 
 import math
 from typing import Dict, List
 import evaluate
@@ -51,7 +51,7 @@ class ChatDataset(Dataset):
                         text,
                         truncation=True,
                         max_length=block_size,
-                        padding="max_length", # <--- Ensure padding is done
+                        padding="max_length", 
                         return_tensors="pt"
                     )
                     self.examples.append(tokens.input_ids.squeeze(0))
@@ -67,31 +67,23 @@ class TurkishChatBot:
     def __init__(self, model_dir="gpt2-turkish-chatbot-v3", model_name="redrussianarmy/gpt2-turkish-cased"):
         self.model_dir = model_dir
         self.tokenizer = GPT2Tokenizer.from_pretrained(model_name)
-        # It's good to explicitly define pad_token for GPT-2 if not present,
-        # especially for batching.
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
-        # Set pad_token_id in model config for generation (important for batching and stopping)
+        
         self.model.config.pad_token_id = self.tokenizer.pad_token_id
-        # Resize token embeddings only if you were adding new special tokens.
-        # For standard GPT-2 fine-tuning without new tokens, this line might be slightly redundant
-        # but is generally harmless.
-        # self.model.resize_token_embeddings(len(self.tokenizer)) # Keep if you have specific reasons otherwise can comment out
+
 
     def train(self, train_jsonl, val_jsonl=None, epochs=5, batch_size=8):
-        # <--- IMPORTANT: Ensure block_size here is consistent with a larger value
-        train_dataset = ChatDataset(train_jsonl, self.tokenizer, block_size=128) # <--- CRITICAL: Consistent block_size
-        val_dataset = ChatDataset(val_jsonl, self.tokenizer, block_size=128) if val_jsonl else None # <--- CRITICAL: Consistent block_size
+        train_dataset = ChatDataset(train_jsonl, self.tokenizer, block_size=128)
+        val_dataset = ChatDataset(val_jsonl, self.tokenizer, block_size=128) if val_jsonl else None 
         
         data_collator = DataCollatorForLanguageModeling(tokenizer=self.tokenizer, mlm=False)
         args = TrainingArguments(
             output_dir=self.model_dir,
             num_train_epochs=epochs,
-            per_device_train_batch_size=batch_size, # Use passed batch_size
-            # Add gradient_accumulation_steps to simulate larger batch sizes if needed
-            # For example, if batch_size=2 and gradient_accumulation_steps=4, effective batch size is 8
+            per_device_train_batch_size=batch_size, 
             gradient_accumulation_steps=4,
             per_device_eval_batch_size=16,
             logging_steps=10,
@@ -127,7 +119,7 @@ class TurkishChatBot:
         self.model.config.pad_token_id = self.tokenizer.pad_token_id
 
     def _generate_response_core(self, prompt: str, num_return_sequences: int = 1,
-                                    max_new_tokens: int = 60, min_new_tokens: int = 5, # Added min_new_tokens
+                                    max_new_tokens: int = 60, min_new_tokens: int = 5,
                                     top_k: int = 30, top_p: float = 0.8, temperature: float = 0.9, 
                                     repetition_penalty: float = 1.2, no_repeat_ngram_size: int = 3):
             
@@ -148,21 +140,21 @@ class TurkishChatBot:
         
         with torch.no_grad():
             outputs = self.model.generate(
-                input_ids=input_ids, # No pre-repeated input_ids
+                input_ids=input_ids,
                 attention_mask=attention_mask,
                 max_new_tokens=max_new_tokens,
-                min_new_tokens=min_new_tokens,         # Added to ensure reasonable length
-                num_beams=1,                            # Crucial for sampling, ensures we're not doing beam search
+                min_new_tokens=min_new_tokens,       
+                num_beams=1,                          
                 do_sample=True,
                 top_k=top_k,
                 top_p=top_p,
                 temperature=temperature,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
-                repetition_penalty=repetition_penalty,       # Crucial for preventing repetition
-                no_repeat_ngram_size=no_repeat_ngram_size,   # Crucial for preventing n-gram repetition
-                stopping_criteria=stopping_criteria_list,    # Stops generation at "\nUser2 :"
-                num_return_sequences=num_return_sequences    # Model.generate now correctly handles this
+                repetition_penalty=repetition_penalty,      
+                no_repeat_ngram_size=no_repeat_ngram_size,  
+                stopping_criteria=stopping_criteria_list,    
+                num_return_sequences=num_return_sequences   
             )
 
         results = []
@@ -186,32 +178,32 @@ class TurkishChatBot:
 
     def regenerate_reply(self, dialogue, index=None):
         self.model.eval()
-        if not dialogue[-1].startswith("User2 :"): # Make sure your server.py passes `User2 :` consistently
+        if not dialogue[-1].startswith("User2 :"):
             raise ValueError("Last message should be from User2 for User1 to reply.")
 
-        prompt = "\n".join(dialogue + ["User1 :"]).strip() # Consistent "User1 :"
+        prompt = "\n".join(dialogue + ["User1 :"]).strip()
         
         
         replies = self._generate_response_core(
             prompt,
             num_return_sequences=1,
             max_new_tokens=60, 
-            min_new_tokens=10, # Ensure a minimum length
+            min_new_tokens=10,
             top_k=30,      
             top_p=0.8,     
             temperature=0.9,
-            repetition_penalty=1.2, # Added/kept
-            no_repeat_ngram_size=3  # Added/kept
+            repetition_penalty=1.2, 
+            no_repeat_ngram_size=3  
         )
         return replies[0]
 
 
     def generate_multiple_replies(self, dialogue, num_replies=3):
         self.model.eval()
-        if not dialogue[-1].startswith("User2 :"): # Make sure your server.py passes `User2 :` consistently
+        if not dialogue[-1].startswith("User2 :"): 
             raise ValueError("Last message should be from User2 for User1 to reply.")
 
-        prompt = "\n".join(dialogue + ["User1 :"]).strip() # Consistent "User1 :"
+        prompt = "\n".join(dialogue + ["User1 :"]).strip() 
 
        
         replies = self._generate_response_core(
@@ -222,8 +214,9 @@ class TurkishChatBot:
             top_k=50,      
             top_p=0.95,    
             temperature=0.9,
-            repetition_penalty=1.5, # Slightly more aggressive for multiple suggestions
-            no_repeat_ngram_size=4  # Slightly more aggressive for multiple suggestions
+            repetition_penalty=1.5,
+            no_repeat_ngram_size=4 
         )
         return replies
+
 
