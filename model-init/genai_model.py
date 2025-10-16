@@ -21,7 +21,6 @@ class UserTurnStoppingCriteria(StoppingCriteria):
         self.start_prompt_length = start_prompt_length
         self.stop_sequence_ids = self.tokenizer.encode(stop_sequence, add_special_tokens=False)
         self.stop_sequence_length = len(self.stop_sequence_ids)
-        # print(f"Stopping criteria initialized with sequence: '{stop_sequence}' and IDs: {self.stop_sequence_ids}")
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
     
@@ -136,16 +135,13 @@ class TurkishChatBot:
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
-        
-        # --- FIX FOR 9 REPLIES: No manual repeat of input_ids! ---
-        # model.generate's num_return_sequences handles this repetition internally.
+  
         input_ids = inputs["input_ids"].to(device) 
         attention_mask = inputs["attention_mask"].to(device)
 
-        # Get prompt length for stopping criteria
         start_prompt_length = inputs["input_ids"].shape[1]
 
-        # Init stopping criteria list
+
         stopping_criteria_list = StoppingCriteriaList([
             UserTurnStoppingCriteria(self.tokenizer, start_prompt_length, stop_sequence="\nUser2 :") 
         ])
@@ -171,19 +167,16 @@ class TurkishChatBot:
 
         results = []
         for output_seq in outputs:
-            # Decode the entire generated sequence
+
             decoded_text = self.tokenizer.decode(output_seq, skip_special_tokens=True)
-            
-            # Post-processing: Remove the initial prompt part
+
             response_text = decoded_text[len(prompt):].strip()
 
-            # Safeguard Post-processing: If "User2 :" or "User1 :" still appear at the end
-            # (less likely with effective StoppingCriteria)
+        
+    
             if "User2 :" in response_text:
                 response_text = response_text.split("User2 :")[0].strip()
-            
-            # Handle cases where "User1 :" loops within the response
-            # (e.g., "reply part one User1 : reply part two")
+ 
             if "User1 :" in response_text:
                 response_text = response_text.split("User1 :")[0].strip()
 
@@ -233,3 +226,4 @@ class TurkishChatBot:
             no_repeat_ngram_size=4  # Slightly more aggressive for multiple suggestions
         )
         return replies
+
